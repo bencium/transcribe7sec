@@ -3,7 +3,10 @@ import fs from 'fs';
 import path from 'path';
 import OpenAI from 'openai';
 
-const openai = new OpenAI({ apiKey: process.env.NEXT_PUBLIC_OPENAI_API_KEY });
+const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+
+// Define temporary directory
+const tempDir = path.join(process.cwd(), 'tmp', 'audio');
 
 export async function POST(req: NextRequest) {
   try {
@@ -13,11 +16,16 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'No file name provided' }, { status: 400 });
     }
 
-    if (!process.env.NEXT_PUBLIC_OPENAI_API_KEY) {
+    if (!process.env.OPENAI_API_KEY) {
       return NextResponse.json({ error: 'OpenAI API key is not configured' }, { status: 500 });
     }
 
-    const filePath = path.join(process.cwd(), 'public', 'audio', fileName);
+    // Create temporary directory if it doesn't exist
+    if (!fs.existsSync(tempDir)) {
+      fs.mkdirSync(tempDir, { recursive: true });
+    }
+
+    const filePath = path.join(tempDir, fileName);
 
     if (!fs.existsSync(filePath)) {
       console.error(`Audio file not found: ${filePath}`);
@@ -32,14 +40,22 @@ export async function POST(req: NextRequest) {
     });
     console.log(`Transcription completed for: ${fileName}`);
 
-    // Instead of deleting, we'll move the file to a 'processed' folder
-    const processedDir = path.join(process.cwd(), 'public', 'audio', 'processed');
+    // Move processed file to a 'processed' folder within the temp directory
+    const processedDir = path.join(tempDir, 'processed');
     if (!fs.existsSync(processedDir)) {
       fs.mkdirSync(processedDir, { recursive: true });
     }
     const newPath = path.join(processedDir, fileName);
     fs.renameSync(filePath, newPath);
     console.log(`Moved ${fileName} to processed folder`);
+
+    // Optional: Delete the processed file after a certain time
+    setTimeout(() => {
+      fs.unlink(newPath, (err) => {
+        if (err) console.error(`Error deleting processed file: ${err}`);
+        else console.log(`Deleted processed file: ${fileName}`);
+      });
+    }, 3600000); // Delete after 1 hour
 
     return new NextResponse(transcription, { status: 200 });
   } catch (error: unknown) {

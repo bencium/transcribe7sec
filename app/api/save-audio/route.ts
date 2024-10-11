@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import fs from 'fs';
 import path from 'path';
 
+const tempDir = path.join(process.cwd(), 'tmp', 'audio');
+
 export async function POST(req: NextRequest) {
   const formData = await req.formData();
   const audio = formData.get('audio') as File;
@@ -10,8 +12,13 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'No audio file provided' }, { status: 400 });
   }
 
+  // Create temporary directory if it doesn't exist
+  if (!fs.existsSync(tempDir)) {
+    fs.mkdirSync(tempDir, { recursive: true });
+  }
+
   const buffer = Buffer.from(await audio.arrayBuffer());
-  const filePath = path.join(process.cwd(), 'public', 'audio', audio.name);
+  const filePath = path.join(tempDir, audio.name);
 
   try {
     fs.writeFileSync(filePath, buffer);
